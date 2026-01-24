@@ -27,13 +27,44 @@ if datetime.now().year > _ey:
 st.markdown("""
 <style>
 @media (max-width: 768px) {
-    .block-container { padding: 1rem 0.5rem !important; }
+    /* 컨테이너 */
+    .block-container { padding: 0.5rem 0.3rem !important; }
     [data-testid="column"] { width: 100% !important; flex: 100% !important; min-width: 100% !important; }
-    .stTabs [data-baseweb="tab-list"] { gap: 0.2rem; }
-    .stTabs [data-baseweb="tab"] { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
-    .stButton > button { font-size: 0.75rem; padding: 0.3rem 0.5rem; }
-    h1 { font-size: 1.3rem !important; }
-    h2, h3 { font-size: 1rem !important; }
+
+    /* 탭 네비게이션 - 터치 영역 확대 */
+    .stTabs [data-baseweb="tab-list"] { gap: 0.1rem; overflow-x: auto; }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.6rem;
+        white-space: nowrap;
+    }
+
+    /* 제목/텍스트 크기 */
+    h1 { font-size: 1.4rem !important; }
+    h2 { font-size: 1.2rem !important; }
+    h3 { font-size: 1.1rem !important; }
+    h4 { font-size: 1rem !important; }
+    p, .stMarkdown { font-size: 0.9rem; }
+
+    /* 버튼 터치 영역 */
+    .stButton > button {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.8rem;
+        min-height: 44px;
+    }
+
+    /* 셀렉트박스 */
+    .stSelectbox label { font-size: 0.9rem; }
+    .stSelectbox [data-baseweb="select"] { font-size: 0.9rem; }
+
+    /* 데이터프레임 폰트 */
+    .stDataFrame { font-size: 0.8rem; }
+
+    /* 스피너/알림 */
+    .stAlert { font-size: 0.85rem; padding: 0.5rem; }
+
+    /* Plotly 차트 컨테이너 여백 축소 */
+    .js-plotly-plot { margin: 0 -0.3rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -43,7 +74,7 @@ with col_title:
     st.title("KOSPI TOP 30 놀이")
 with col_warn:
     st.markdown(
-        '<p style="color:gray; font-size:0.75rem; margin-top:2.5rem;">'
+        '<p style="color:gray; font-size:0.8rem; margin-top:2.5rem;">'
         '* 본 앱은 학습/참고용이며, 실제 투자 판단에 활용하지 마세요. 투자 손실에 대한 책임은 본인에게 있습니다.</p>',
         unsafe_allow_html=True
     )
@@ -101,13 +132,13 @@ with tab_chart:
             fig.add_trace(go.Scatter(
                 x=buy_pts.index, y=buy_pts["종가"],
                 mode="markers", name="매수",
-                marker=dict(color="red", size=9, symbol="triangle-up")
+                marker=dict(color="red", size=12, symbol="triangle-up")
             ))
             sell_pts = signals_chart[signals_chart["sell"] == True]
             fig.add_trace(go.Scatter(
                 x=sell_pts.index, y=sell_pts["종가"],
                 mode="markers", name="매도",
-                marker=dict(color="blue", size=9, symbol="triangle-down")
+                marker=dict(color="blue", size=12, symbol="triangle-down")
             ))
 
             # 최신 종가에 현재 신호 표시
@@ -118,39 +149,40 @@ with tab_chart:
                     fig.add_annotation(
                         x=last_date, y=last_price,
                         text="매수", showarrow=True, arrowhead=2,
-                        font=dict(color="red", size=14, family="Arial Black"),
+                        font=dict(color="red", size=16, family="Arial Black"),
                         arrowcolor="red", ax=0, ay=-40
                     )
                 elif cur_sig["new_sell"]:
                     fig.add_annotation(
                         x=last_date, y=last_price,
                         text="매도", showarrow=True, arrowhead=2,
-                        font=dict(color="blue", size=14, family="Arial Black"),
+                        font=dict(color="blue", size=16, family="Arial Black"),
                         arrowcolor="blue", ax=0, ay=40
                     )
                 elif cur_sig["position"] == 1:
                     fig.add_annotation(
                         x=last_date, y=last_price,
                         text="보유중", showarrow=True, arrowhead=2,
-                        font=dict(color="green", size=12),
+                        font=dict(color="green", size=14),
                         arrowcolor="green", ax=0, ay=-35
                     )
 
             fig.update_layout(
-                height=500,
+                height=350,
                 showlegend=False,
                 xaxis_title="날짜",
                 yaxis_title="종가 (원)",
-                margin=dict(l=50, r=50, t=30, b=30)
+                margin=dict(l=10, r=10, t=20, b=30),
+                font=dict(size=12)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
             st.subheader("데이터 테이블")
             table_df = monthly_df.copy()
             table_df = table_df.sort_index(ascending=False)
             table_df.index = table_df.index.strftime("%Y-%m")
             table_df["종가"] = table_df["종가"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(table_df, height=400, use_container_width=True)
+            st.dataframe(table_df, height=300, use_container_width=True)
 
 
 # ==================== 개별 백테스트 탭 ====================
@@ -197,14 +229,14 @@ with tab_individual:
             fig_ma.add_trace(go.Scatter(
                 x=buy_points.index, y=buy_points["종가"],
                 mode="markers", name="매수",
-                marker=dict(color="red", size=10, symbol="triangle-up")
+                marker=dict(color="red", size=12, symbol="triangle-up")
             ))
 
             sell_points = signals_df[signals_df["sell"] == True]
             fig_ma.add_trace(go.Scatter(
                 x=sell_points.index, y=sell_points["종가"],
                 mode="markers", name="매도",
-                marker=dict(color="blue", size=10, symbol="triangle-down")
+                marker=dict(color="blue", size=12, symbol="triangle-down")
             ))
 
             # 최신 종가에 현재 신호 표시
@@ -215,31 +247,32 @@ with tab_individual:
                     fig_ma.add_annotation(
                         x=last_date, y=last_price,
                         text="매수", showarrow=True, arrowhead=2,
-                        font=dict(color="red", size=14, family="Arial Black"),
+                        font=dict(color="red", size=16, family="Arial Black"),
                         arrowcolor="red", ax=0, ay=-40
                     )
                 elif cur_sig_bt["new_sell"]:
                     fig_ma.add_annotation(
                         x=last_date, y=last_price,
                         text="매도", showarrow=True, arrowhead=2,
-                        font=dict(color="blue", size=14, family="Arial Black"),
+                        font=dict(color="blue", size=16, family="Arial Black"),
                         arrowcolor="blue", ax=0, ay=40
                     )
                 elif cur_sig_bt["position"] == 1:
                     fig_ma.add_annotation(
                         x=last_date, y=last_price,
                         text="보유중", showarrow=True, arrowhead=2,
-                        font=dict(color="green", size=12),
+                        font=dict(color="green", size=14),
                         arrowcolor="green", ax=0, ay=-35
                     )
 
             fig_ma.update_layout(
-                height=400,
+                height=300,
                 showlegend=False,
                 xaxis_title="날짜", yaxis_title="가격 (원)",
-                margin=dict(l=50, r=50, t=30, b=30)
+                margin=dict(l=10, r=10, t=20, b=30),
+                font=dict(size=12)
             )
-            st.plotly_chart(fig_ma, use_container_width=True)
+            st.plotly_chart(fig_ma, use_container_width=True, config={'displayModeBar': False})
 
             # 2) 누적수익률 차트
             st.markdown("#### 누적수익률 비교")
@@ -263,12 +296,13 @@ with tab_individual:
                     ))
 
             fig_cum.update_layout(
-                height=350,
+                height=280,
                 xaxis_title="날짜", yaxis_title="누적수익률 (%)",
-                margin=dict(l=50, r=50, t=30, b=30),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02)
+                margin=dict(l=10, r=10, t=20, b=30),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                font=dict(size=12)
             )
-            st.plotly_chart(fig_cum, use_container_width=True)
+            st.plotly_chart(fig_cum, use_container_width=True, config={'displayModeBar': False})
 
             # 3) 성과 지표 테이블
             st.markdown("#### 성과 지표")
@@ -297,7 +331,7 @@ with tab_individual:
                 trades_df["매도일"] = trades_df["매도일"].dt.strftime("%Y-%m")
                 trades_df["매수가"] = trades_df["매수가"].apply(lambda x: f"{x:,.0f}")
                 trades_df["매도가"] = trades_df["매도가"].apply(lambda x: f"{x:,.0f}")
-                st.dataframe(trades_df, use_container_width=True, height=300)
+                st.dataframe(trades_df, use_container_width=True, height=250)
 
 
 # ==================== 통합 백테스트 탭 ====================
@@ -346,12 +380,13 @@ with tab_portfolio:
                     ))
 
             fig_port.update_layout(
-                height=400,
+                height=300,
                 xaxis_title="날짜", yaxis_title="누적수익률 (%)",
-                margin=dict(l=50, r=50, t=30, b=30),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02)
+                margin=dict(l=10, r=10, t=20, b=30),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                font=dict(size=12)
             )
-            st.plotly_chart(fig_port, use_container_width=True)
+            st.plotly_chart(fig_port, use_container_width=True, config={'displayModeBar': False})
 
             st.markdown("#### 월별 활성 종목 수")
             fig_active = go.Figure()
@@ -361,11 +396,12 @@ with tab_portfolio:
                 marker_color="#1a3a6b"
             ))
             fig_active.update_layout(
-                height=250,
+                height=220,
                 xaxis_title="날짜", yaxis_title="종목 수",
-                margin=dict(l=50, r=50, t=30, b=30)
+                margin=dict(l=10, r=10, t=20, b=30),
+                font=dict(size=12)
             )
-            st.plotly_chart(fig_active, use_container_width=True)
+            st.plotly_chart(fig_active, use_container_width=True, config={'displayModeBar': False})
 
             st.markdown("#### 성과 비교")
             port_metrics = calculate_metrics(port_returns, kospi_returns_port)
@@ -408,15 +444,16 @@ with tab_portfolio:
                     zmid=0,
                     text=np.round(pivot_table.values, 1),
                     texttemplate="%{text}",
-                    textfont={"size": 10},
+                    textfont={"size": 11},
                     hovertemplate="연도: %{y}<br>월: %{x}<br>수익률: %{z:.1f}%<extra></extra>"
                 ))
                 fig_heat.update_layout(
-                    height=max(300, len(pivot_table) * 25),
-                    margin=dict(l=50, r=50, t=30, b=30),
-                    yaxis=dict(dtick=1)
+                    height=max(250, len(pivot_table) * 25),
+                    margin=dict(l=10, r=10, t=20, b=30),
+                    yaxis=dict(dtick=1),
+                    font=dict(size=12)
                 )
-                st.plotly_chart(fig_heat, use_container_width=True)
+                st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
         else:
             st.warning("포트폴리오 백테스트 결과가 없습니다.")
 
