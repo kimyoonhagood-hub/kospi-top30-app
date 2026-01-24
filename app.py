@@ -9,7 +9,7 @@ import numpy as np
 from datetime import datetime
 
 from data_fetcher import get_top30_kospi_stocks, get_stock_monthly_close, get_kospi_index_monthly
-from backtester import calculate_signals, backtest_stock, backtest_portfolio, calculate_metrics, get_current_signal
+from backtester import backtest_stock, backtest_portfolio, calculate_metrics, get_current_signal
 
 st.set_page_config(
     page_title="KOSPI TOP 30 놀이",
@@ -86,104 +86,9 @@ if top30_df.empty:
     st.stop()
 
 # 탭 구성
-tab_chart, tab_individual, tab_portfolio, tab_signals = st.tabs(
-    ["종목 차트", "개별 백테스트", "통합 백테스트", "이번달 신호"]
+tab_individual, tab_portfolio, tab_signals = st.tabs(
+    ["개별 백테스트", "통합 백테스트", "이번달 신호"]
 )
-
-# ==================== 종목 차트 탭 ====================
-with tab_chart:
-    col_left, col_right = st.columns([1, 3])
-
-    with col_left:
-        st.subheader("종목 선택")
-        chart_stock_name = st.selectbox(
-            "종목",
-            options=top30_df["종목명"].tolist(),
-            key="chart_stock_select"
-        )
-        chart_row = top30_df[top30_df["종목명"] == chart_stock_name].iloc[0]
-        chart_ticker = chart_row["종목코드"]
-
-    with col_right:
-        st.subheader(f"{chart_stock_name} ({chart_ticker}) - 월봉 종가")
-
-        monthly_df = get_stock_monthly_close(chart_ticker)
-
-        if monthly_df.empty:
-            st.warning("월봉 종가 데이터를 불러올 수 없습니다.")
-        else:
-            # 신호 계산
-            signals_chart = calculate_signals(monthly_df)
-            cur_sig = get_current_signal(monthly_df)
-
-            fig = go.Figure()
-            fig.add_trace(
-                go.Scatter(
-                    x=monthly_df.index,
-                    y=monthly_df["종가"],
-                    mode="lines",
-                    name="종가",
-                    line=dict(color="#FF4B4B", width=2)
-                )
-            )
-
-            # 매수/매도 신호 마커
-            buy_pts = signals_chart[signals_chart["buy"] == True]
-            fig.add_trace(go.Scatter(
-                x=buy_pts.index, y=buy_pts["종가"],
-                mode="markers", name="매수",
-                marker=dict(color="red", size=12, symbol="triangle-up")
-            ))
-            sell_pts = signals_chart[signals_chart["sell"] == True]
-            fig.add_trace(go.Scatter(
-                x=sell_pts.index, y=sell_pts["종가"],
-                mode="markers", name="매도",
-                marker=dict(color="blue", size=12, symbol="triangle-down")
-            ))
-
-            # 최신 종가에 현재 신호 표시
-            if cur_sig:
-                last_date = monthly_df.index[-1]
-                last_price = monthly_df["종가"].iloc[-1]
-                if cur_sig["new_buy"]:
-                    fig.add_annotation(
-                        x=last_date, y=last_price,
-                        text="매수", showarrow=True, arrowhead=2,
-                        font=dict(color="red", size=16, family="Arial Black"),
-                        arrowcolor="red", ax=0, ay=-40
-                    )
-                elif cur_sig["new_sell"]:
-                    fig.add_annotation(
-                        x=last_date, y=last_price,
-                        text="매도", showarrow=True, arrowhead=2,
-                        font=dict(color="blue", size=16, family="Arial Black"),
-                        arrowcolor="blue", ax=0, ay=40
-                    )
-                elif cur_sig["position"] == 1:
-                    fig.add_annotation(
-                        x=last_date, y=last_price,
-                        text="보유중", showarrow=True, arrowhead=2,
-                        font=dict(color="green", size=14),
-                        arrowcolor="green", ax=0, ay=-35
-                    )
-
-            fig.update_layout(
-                height=350,
-                showlegend=False,
-                xaxis_title="날짜",
-                yaxis_title="종가 (원)",
-                margin=dict(l=10, r=10, t=20, b=30),
-                font=dict(size=12)
-            )
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-            st.subheader("데이터 테이블")
-            table_df = monthly_df.copy()
-            table_df = table_df.sort_index(ascending=False)
-            table_df.index = table_df.index.strftime("%Y-%m")
-            table_df["종가"] = table_df["종가"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(table_df, height=300, use_container_width=True)
-
 
 # ==================== 개별 백테스트 탭 ====================
 with tab_individual:
