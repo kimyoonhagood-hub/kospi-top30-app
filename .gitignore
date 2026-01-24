@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pdf
+run_public.py
+generate_pdf.py
+PROJECT.md
