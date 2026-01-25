@@ -66,6 +66,20 @@ st.markdown("""
     /* Plotly 차트 컨테이너 여백 축소 */
     .js-plotly-plot { margin: 0 -0.3rem; }
 }
+
+/* 종목 선택 드롭다운 - 직접 입력 비활성화 (모바일 키보드 방지) */
+.stSelectbox input {
+    pointer-events: none !important;
+    caret-color: transparent !important;
+}
+
+/* 전체 제목/라벨 크기 70% 축소 */
+h1 { font-size: 1.4rem !important; }
+h2, .stSubheader { font-size: 1.1rem !important; }
+h3 { font-size: 1rem !important; }
+h4 { font-size: 0.95rem !important; }
+.stSelectbox label { font-size: 0.9rem !important; }
+.stTabs [data-baseweb="tab"] { font-size: 0.9rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -131,17 +145,25 @@ with tab_individual:
             ))
 
             buy_points = signals_df[signals_df["buy"] == True]
+            buy_labels = [f"{d.strftime('%y/%m')}<br>{p:,.0f}원" for d, p in zip(buy_points.index, buy_points["종가"])]
             fig_ma.add_trace(go.Scatter(
                 x=buy_points.index, y=buy_points["종가"],
-                mode="markers", name="매수",
-                marker=dict(color="red", size=12, symbol="triangle-up")
+                mode="markers+text", name="매수",
+                marker=dict(color="red", size=10, symbol="arrow-up"),
+                text=buy_labels,
+                textposition="top center",
+                textfont=dict(size=9, color="red")
             ))
 
             sell_points = signals_df[signals_df["sell"] == True]
+            sell_labels = [f"{d.strftime('%y/%m')}<br>{p:,.0f}원" for d, p in zip(sell_points.index, sell_points["종가"])]
             fig_ma.add_trace(go.Scatter(
                 x=sell_points.index, y=sell_points["종가"],
-                mode="markers", name="매도",
-                marker=dict(color="blue", size=12, symbol="triangle-down")
+                mode="markers+text", name="매도",
+                marker=dict(color="blue", size=10, symbol="arrow-down"),
+                text=sell_labels,
+                textposition="bottom center",
+                textfont=dict(size=9, color="blue")
             ))
 
             # 최신 종가에 현재 신호 표시
@@ -170,14 +192,40 @@ with tab_individual:
                         arrowcolor="green", ax=0, ay=-35
                     )
 
+            # 기본 3년 범위 계산
+            last_date_ma = signals_df.index[-1]
+            three_years_ago_ma = last_date_ma - pd.DateOffset(years=3)
+
             fig_ma.update_layout(
-                height=300,
+                height=350,
                 showlegend=False,
                 xaxis_title="날짜", yaxis_title="가격 (원)",
-                margin=dict(l=10, r=10, t=20, b=30),
-                font=dict(size=12)
+                margin=dict(l=10, r=10, t=40, b=30),
+                font=dict(size=12),
+                dragmode=False
             )
-            st.plotly_chart(fig_ma, use_container_width=True, config={'displayModeBar': False})
+            fig_ma.update_xaxes(
+                range=[three_years_ago_ma, last_date_ma],
+                rangeslider=dict(visible=True, thickness=0.08),
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=1, label="1Y", step="year", stepmode="backward"),
+                        dict(count=3, label="3Y", step="year", stepmode="backward"),
+                        dict(step="all", label="전체")
+                    ],
+                    bgcolor="white",
+                    activecolor="lightgray"
+                ),
+                dtick="M6",
+                tickformat="%y/%m",
+                minor=dict(dtick="M1", showgrid=True, gridcolor="lightgray", griddash="dot")
+            )
+            st.plotly_chart(fig_ma, use_container_width=True, config={
+                'displayModeBar': True,
+                'modeBarButtonsToInclude': ['zoomIn2d', 'zoomOut2d', 'resetScale2d'],
+                'scrollZoom': False,
+                'doubleClick': False
+            })
 
             # 2) 누적수익률 차트
             st.markdown("#### 누적수익률 비교")
@@ -200,14 +248,40 @@ with tab_individual:
                         line=dict(color="green", width=1.5, dash="dot")
                     ))
 
+            # 기본 3년 범위 계산
+            last_date_cum = valid_cum.index[-1]
+            three_years_ago_cum = last_date_cum - pd.DateOffset(years=3)
+
             fig_cum.update_layout(
-                height=280,
+                height=330,
                 xaxis_title="날짜", yaxis_title="누적수익률 (%)",
-                margin=dict(l=10, r=10, t=20, b=30),
+                margin=dict(l=10, r=10, t=40, b=30),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                font=dict(size=12)
+                font=dict(size=12),
+                dragmode=False
             )
-            st.plotly_chart(fig_cum, use_container_width=True, config={'displayModeBar': False})
+            fig_cum.update_xaxes(
+                range=[three_years_ago_cum, last_date_cum],
+                rangeslider=dict(visible=True, thickness=0.08),
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=1, label="1Y", step="year", stepmode="backward"),
+                        dict(count=3, label="3Y", step="year", stepmode="backward"),
+                        dict(step="all", label="전체")
+                    ],
+                    bgcolor="white",
+                    activecolor="lightgray"
+                ),
+                dtick="M6",
+                tickformat="%y/%m",
+                minor=dict(dtick="M1", showgrid=True, gridcolor="lightgray", griddash="dot")
+            )
+            st.plotly_chart(fig_cum, use_container_width=True, config={
+                'displayModeBar': True,
+                'modeBarButtonsToInclude': ['zoomIn2d', 'zoomOut2d', 'resetScale2d'],
+                'scrollZoom': False,
+                'doubleClick': False
+            })
 
             # 3) 성과 지표 테이블
             st.markdown("#### 성과 지표")
@@ -244,17 +318,23 @@ with tab_portfolio:
     st.subheader("통합 포트폴리오 백테스트")
     st.markdown("각 종목 비중 1/30 고정, 매수 신호 없는 종목은 현금 보유")
 
-    with st.spinner("30개 종목 데이터를 수집 중..."):
+    with st.spinner("30개 종목 데이터를 수집 중... (최초 실행시 시간이 걸릴 수 있습니다)"):
         all_monthly_data = {}
+        failed_count = 0
         for idx, row in top30_df.iterrows():
             ticker = row["종목코드"]
             name = row["종목명"]
             monthly = get_stock_monthly_close(ticker)
             if not monthly.empty:
                 all_monthly_data[name] = monthly
+            else:
+                failed_count += 1
+
+        if failed_count > 0 and failed_count < 30:
+            st.info(f"{failed_count}개 종목의 데이터를 가져오지 못했습니다. 나머지 종목으로 분석을 진행합니다.")
 
     if not all_monthly_data:
-        st.error("종목 데이터를 불러올 수 없습니다.")
+        st.error("종목 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.")
     else:
         port_result = backtest_portfolio(all_monthly_data)
         port_returns = port_result["portfolio_returns"]
@@ -284,14 +364,40 @@ with tab_portfolio:
                         line=dict(color="green", width=1.5, dash="dot")
                     ))
 
+            # 기본 6년 범위 계산
+            last_date_port = port_cumulative.index[-1]
+            six_years_ago_port = last_date_port - pd.DateOffset(years=6)
+
             fig_port.update_layout(
-                height=300,
+                height=350,
                 xaxis_title="날짜", yaxis_title="누적수익률 (%)",
-                margin=dict(l=10, r=10, t=20, b=30),
+                margin=dict(l=10, r=10, t=40, b=30),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                font=dict(size=12)
+                font=dict(size=12),
+                dragmode=False
             )
-            st.plotly_chart(fig_port, use_container_width=True, config={'displayModeBar': False})
+            fig_port.update_xaxes(
+                range=[six_years_ago_port, last_date_port],
+                rangeslider=dict(visible=True, thickness=0.08),
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=3, label="3Y", step="year", stepmode="backward"),
+                        dict(count=6, label="6Y", step="year", stepmode="backward"),
+                        dict(step="all", label="전체")
+                    ],
+                    bgcolor="white",
+                    activecolor="lightgray"
+                ),
+                dtick="M6",
+                tickformat="%y/%m",
+                minor=dict(dtick="M1", showgrid=True, gridcolor="lightgray", griddash="dot")
+            )
+            st.plotly_chart(fig_port, use_container_width=True, config={
+                'displayModeBar': True,
+                'modeBarButtonsToInclude': ['zoomIn2d', 'zoomOut2d', 'resetScale2d'],
+                'scrollZoom': False,
+                'doubleClick': False
+            })
 
             st.markdown("#### 월별 활성 종목 수")
             fig_active = go.Figure()
@@ -300,13 +406,40 @@ with tab_portfolio:
                 name="활성 종목 수",
                 marker_color="#1a3a6b"
             ))
+
+            # 기본 6년 범위 계산
+            last_date_active = active_counts.index[-1]
+            six_years_ago_active = last_date_active - pd.DateOffset(years=6)
+
             fig_active.update_layout(
-                height=220,
+                height=280,
                 xaxis_title="날짜", yaxis_title="종목 수",
-                margin=dict(l=10, r=10, t=20, b=30),
-                font=dict(size=12)
+                margin=dict(l=10, r=10, t=40, b=30),
+                font=dict(size=12),
+                dragmode=False
             )
-            st.plotly_chart(fig_active, use_container_width=True, config={'displayModeBar': False})
+            fig_active.update_xaxes(
+                range=[six_years_ago_active, last_date_active],
+                rangeslider=dict(visible=True, thickness=0.08),
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=3, label="3Y", step="year", stepmode="backward"),
+                        dict(count=6, label="6Y", step="year", stepmode="backward"),
+                        dict(step="all", label="전체")
+                    ],
+                    bgcolor="white",
+                    activecolor="lightgray"
+                ),
+                dtick="M6",
+                tickformat="%y/%m",
+                minor=dict(dtick="M1", showgrid=True, gridcolor="lightgray", griddash="dot")
+            )
+            st.plotly_chart(fig_active, use_container_width=True, config={
+                'displayModeBar': True,
+                'modeBarButtonsToInclude': ['zoomIn2d', 'zoomOut2d', 'resetScale2d'],
+                'scrollZoom': False,
+                'doubleClick': False
+            })
 
             st.markdown("#### 성과 비교")
             port_metrics = calculate_metrics(port_returns, kospi_returns_port)
@@ -367,10 +500,11 @@ with tab_portfolio:
 with tab_signals:
     st.subheader("이번달 매수/매도 신호")
 
-    with st.spinner("30개 종목 신호를 분석 중..."):
+    with st.spinner("30개 종목 신호를 분석 중... (최초 실행시 시간이 걸릴 수 있습니다)"):
         buy_list = []
         sell_list = []
         hold_list = []
+        analyzed_count = 0
 
         for idx, row in top30_df.iterrows():
             ticker = row["종목코드"]
@@ -378,6 +512,7 @@ with tab_signals:
             monthly = get_stock_monthly_close(ticker)
             if monthly.empty or len(monthly) < 11:
                 continue
+            analyzed_count += 1
 
             sig = get_current_signal(monthly)
             if sig is None:
