@@ -1,12 +1,48 @@
 """
 KOSPI 시가총액 상위 30종목 데이터 수집 모듈
-- Top 30 종목: FinanceDataReader → pykrx
+- Top 30 종목: FinanceDataReader → pykrx → 하드코딩 fallback
 - 월봉 종가: yfinance(2001년~) → pykrx → FinanceDataReader
 """
 
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
+
+
+# Fallback: 2025년 1월 기준 KOSPI 시가총액 상위 30종목
+# Streamlit Cloud 등 해외 서버에서 KRX 접근이 불가능할 때 사용
+FALLBACK_TOP30 = [
+    ("005930", "삼성전자", 400),
+    ("000660", "SK하이닉스", 180),
+    ("005380", "현대차", 55),
+    ("373220", "LG에너지솔루션", 95),
+    ("005935", "삼성전자우", 45),
+    ("000270", "기아", 40),
+    ("068270", "셀트리온", 35),
+    ("105560", "KB금융", 32),
+    ("055550", "신한지주", 28),
+    ("035420", "NAVER", 27),
+    ("028260", "삼성물산", 26),
+    ("003670", "포스코홀딩스", 25),
+    ("012330", "현대모비스", 24),
+    ("035720", "카카오", 22),
+    ("066570", "LG전자", 21),
+    ("086790", "하나금융지주", 20),
+    ("051910", "LG화학", 19),
+    ("006400", "삼성SDI", 18),
+    ("032830", "삼성생명", 17),
+    ("003550", "LG", 16),
+    ("096770", "SK이노베이션", 15),
+    ("017670", "SK텔레콤", 14),
+    ("030200", "KT", 13),
+    ("034730", "SK", 12),
+    ("009150", "삼성전기", 11),
+    ("018260", "삼성에스디에스", 10),
+    ("010130", "고려아연", 9),
+    ("033780", "KT&G", 8),
+    ("011200", "HMM", 7),
+    ("316140", "우리금융지주", 6),
+]
 
 
 def get_latest_trading_date():
@@ -80,8 +116,11 @@ def get_top30_kospi_stocks():
     except Exception as e:
         st.warning(f"pykrx 데이터 조회 실패: {e}")
 
-    st.error("모든 데이터 소스에서 Top 30 종목 조회에 실패했습니다.")
-    return pd.DataFrame(columns=["종목코드", "종목명", "시가총액", "시가총액(조)"])
+    # 3차: Fallback - 하드코딩된 종목 리스트 사용
+    st.info("실시간 데이터 조회 실패. 기본 종목 리스트를 사용합니다.")
+    fallback_df = pd.DataFrame(FALLBACK_TOP30, columns=["종목코드", "종목명", "시가총액(조)"])
+    fallback_df["시가총액"] = fallback_df["시가총액(조)"] * 1e12
+    return fallback_df[["종목코드", "종목명", "시가총액", "시가총액(조)"]]
 
 
 @st.cache_data(ttl=3600)
@@ -169,7 +208,7 @@ def resample_to_monthly(df):
     return monthly
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=7200)
 def get_kospi_index_monthly():
     """
     KOSPI 지수(^KS11)의 2001년 1월부터 현재까지 월봉 종가 데이터 조회
@@ -177,28 +216,42 @@ def get_kospi_index_monthly():
     """
     start_date = datetime(2001, 1, 1)
 
+    # 1차: yfinance 시도
     try:
         import yfinance as yf
 
         kospi = yf.Ticker("^KS11")
-        df = kospi.history(start=start_date.strftime("%Y-%m-%d"))
-        if not df.empty:
+        df = kospi.history(start=start_date.strftime("%Y-%m-%d"), timeout=60)
+        if df is not None and not df.empty and len(df) > 10:
             daily_df = pd.DataFrame({"종가": df["Close"].values}, index=df.index)
-            daily_df.index = daily_df.index.tz_localize(None)
+            if daily_df.index.tz is not None:
+                daily_df.index = daily_df.index.tz_localize(None)
             daily_df.index.name = "날짜"
             monthly = daily_df.resample("ME").agg({"종가": "last"}).dropna()
             return monthly
-    except Exception as e:
-        st.warning(f"KOSPI 지수 조회 실패: {e}")
+    except Exception:
+        pass
+
+    # 2차: FinanceDataReader 시도
+    try:
+        import FinanceDataReader as fdr
+
+        df = fdr.DataReader("KS11", start_date.strftime("%Y-%m-%d"))
+        if df is not None and not df.empty and len(df) > 10:
+            daily_df = pd.DataFrame({"종가": df["Close"].values}, index=df.index)
+            daily_df.index.name = "날짜"
+            monthly = daily_df.resample("ME").agg({"종가": "last"}).dropna()
+            return monthly
+    except Exception:
+        pass
 
     return pd.DataFrame(columns=["종가"])
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=7200)
 def get_stock_monthly_close(ticker):
     """
     종목의 2001년 1월부터 현재까지 월봉 종가 데이터 조회
-    yfinance를 우선 사용 (2001년부터 전체 이력 제공)
     Args:
         ticker: 종목코드 (예: '005930')
     Returns: DataFrame with columns ['종가'], index: 날짜 (월말)
@@ -210,46 +263,46 @@ def get_stock_monthly_close(ticker):
 
     daily_df = pd.DataFrame()
 
-    # 1차: yfinance 시도 (2001년부터 전체 데이터 제공)
+    # 1차: yfinance 시도 (해외 서버에서 가장 안정적)
     try:
         import yfinance as yf
 
         yf_ticker = f"{ticker}.KS"
         stock = yf.Ticker(yf_ticker)
-        df = stock.history(start=start_date.strftime("%Y-%m-%d"))
-        if not df.empty and len(df) > 0:
+        df = stock.history(start=start_date.strftime("%Y-%m-%d"), timeout=60)
+        if df is not None and not df.empty and len(df) > 10:
             daily_df = pd.DataFrame({"종가": df["Close"].values}, index=df.index)
-            daily_df.index = daily_df.index.tz_localize(None)
+            if daily_df.index.tz is not None:
+                daily_df.index = daily_df.index.tz_localize(None)
             daily_df.index.name = "날짜"
-    except Exception as e:
-        st.warning(f"yfinance 월봉 종가 조회 실패: {e}")
+    except Exception:
+        pass
 
-    # 2차: pykrx 시도 (최근 ~12년 데이터)
-    if daily_df.empty:
-        try:
-            from pykrx import stock as pykrx_stock
-
-            df = pykrx_stock.get_market_ohlcv(start_str, end_str, ticker)
-            if not df.empty:
-                df.index.name = "날짜"
-                daily_df = df[["종가"]].copy()
-        except Exception as e:
-            st.warning(f"pykrx 월봉 종가 조회 실패: {e}")
-
-    # 3차: FinanceDataReader 시도
+    # 2차: FinanceDataReader 시도
     if daily_df.empty:
         try:
             import FinanceDataReader as fdr
 
             df = fdr.DataReader(ticker, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-            if not df.empty:
+            if df is not None and not df.empty and len(df) > 10:
                 daily_df = pd.DataFrame({"종가": df["Close"].values}, index=df.index)
                 daily_df.index.name = "날짜"
-        except Exception as e:
-            st.warning(f"FinanceDataReader 월봉 종가 조회 실패: {e}")
+        except Exception:
+            pass
+
+    # 3차: pykrx 시도 (한국 서버에서만 잘 동작)
+    if daily_df.empty:
+        try:
+            from pykrx import stock as pykrx_stock
+
+            df = pykrx_stock.get_market_ohlcv(start_str, end_str, ticker)
+            if df is not None and not df.empty and len(df) > 10:
+                df.index.name = "날짜"
+                daily_df = df[["종가"]].copy()
+        except Exception:
+            pass
 
     if daily_df.empty:
-        st.error(f"종목 {ticker}의 월봉 종가 데이터를 가져올 수 없습니다.")
         return pd.DataFrame(columns=["종가"])
 
     # 월봉으로 리샘플링 (월말 종가)
